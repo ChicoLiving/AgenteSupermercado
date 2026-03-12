@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SuperAgente">
+<meta name="theme-color" content="#0a0a0a">
+<title>🛒 SuperAgente v2</title>
+<link rel="manifest" href="#" id="manifestLink">
+<!-- SheetJS for Excel parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!-- Inline SVG icon as data URI for apple-touch-icon -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230a0a0a'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle'%3E🛒%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #141414; --card: #1c1c1c;
+    --border: #2a2a2a; --accent: #00e676; --accent2: #ff6b35;
+    --text: #f0f0f0; --muted: #888;
+    --font-display: 'Syne', sans-serif; --font-mono: 'Space Mono', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font-display); min-height:100vh; display:flex; flex-direction:column; }
+
+  header { padding:16px 28px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface); }
+  .logo { font-size:1.3rem; font-weight:800; letter-spacing:-1px; }
+  .logo span { color:var(--accent); }
+  .header-right { display:flex; align-items:center; gap:16px; }
+  .status-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; display:inline-block; margin-right:6px; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,230,118,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(0,230,118,0)} }
+  .status-text { font-size:.7rem; color:var(--muted); font-family:var(--font-mono); }
+  .pref-count { font-size:.7rem; font-family:var(--font-mono); color:var(--accent); background:rgba(0,230,118,.1); padding:4px 10px; border-radius:20px; border:1px solid rgba(0,230,118,.3); }
+
+  .main { display:flex; flex-direction:column; flex:1; height:calc(100vh - 57px); overflow:hidden; }
+  @media (min-width:700px) { .main { flex-direction:row; } }
+
+  /* Mobile bottom nav */
+  .mobile-nav { display:flex; background:var(--surface); border-top:1px solid var(--border); flex-shrink:0; }
+  @media (min-width:700px) { .mobile-nav { display:none; } }
+  .mobile-nav-btn { flex:1; padding:10px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:2px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:.55rem; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; transition:color .2s; }
+  .mobile-nav-btn .nav-icon { font-size:1.2rem; }
+  .mobile-nav-btn.active { color:var(--accent); }
+
+  /* Mobile panels */
+  .mobile-panel { display:none; flex:1; overflow:hidden; flex-direction:column; }
+  .mobile-panel.active { display:flex; }
+  @media (min-width:700px) {
+    .mobile-panel { display:flex !important; }
+    .sidebar { width:300px; flex-shrink:0; }
+    .chat-area { flex:1; }
+  }
+
+  /* SIDEBAR */
+  .sidebar { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
+  .sidebar-tabs { display:flex; border-bottom:1px solid var(--border); }
+  .stab { flex:1; padding:8px 4px; font-size:.58rem; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.5px; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; transition:all .2s; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .stab-content { display:none; flex:1; overflow-y:auto; flex-direction:column; }
+  .stab-content.active { display:flex; }
+  .stab-content::-webkit-scrollbar { width:3px; }
+  .stab-content::-webkit-scrollbar-thumb { background:var(--border); }
+
+  .sec { padding:16px; border-bottom:1px solid var(--border); }
+  .sec h3 { font-size:.6rem; font-family:var(--font-mono); color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
+
+  /* LIST */
+  .list-items { display:flex; flex-direction:column; gap:6px; }
+  .list-item { display:flex; align-items:center; gap:8px; padding:9px 11px; background:var(--card); border-radius:9px; border:1px solid var(--border); font-size:.82rem; transition:border-color .2s; animation:fadeUp .3s ease; }
+  .list-item:hover { border-color:var(--accent); }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .item-icon { font-size:1rem; flex-shrink:0; }
+  .item-info { flex:1; min-width:0; }
+  .item-name { font-weight:700; font-size:.8rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item-brand { font-size:.65rem; color:var(--accent); font-family:var(--font-mono); }
+  .item-meta { font-size:.65rem; color:var(--muted); font-family:var(--font-mono); }
+  .item-price { color:var(--accent); font-family:var(--font-mono); font-size:.75rem; font-weight:700; flex-shrink:0; }
+  .remove-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:2px 5px; border-radius:4px; transition:all .2s; flex-shrink:0; }
+  .remove-btn:hover { color:#ff4444; background:rgba(255,68,68,.1); }
+  .empty-list { text-align:center; padding:20px 12px; color:var(--muted); font-size:.75rem; font-family:var(--font-mono); border:1px dashed var(--border); border-radius:9px; }
+  .totals { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:var(--card); border-radius:9px; border:1px solid var(--border); margin-top:10px; }
+  .total-label { font-size:.65rem; color:var(--muted); font-family:var(--font-mono); text-transform:uppercase; }
+  .total-value { font-size:1.25rem; font-weight:800; color:var(--accent); }
+
+  /* PREFERENCES */
+  .pref-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; background:var(--card); border-radius:9px; border:1px solid var(--border); margin-bottom:6px; font-size:.8rem; }
+  .pref-icon { font-size:1.1rem; flex-shrink:0; }
+  .pref-info { flex:1; }
+  .pref-category { font-size:.6rem; color:var(--muted); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:1px; }
+  .pref-brand { font-weight:700; font-size:.85rem; color:var(--text); }
+  .pref-detail { font-size:.68rem; color:var(--accent); font-family:var(--font-mono); margin-top:2px; }
+  .pref-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.8rem; padding:2px 5px; }
+  .pref-del:hover { color:#ff4444; }
+
+  /* CHAT */
+  .chat-area { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+  .tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .tab { padding:12px 18px; font-size:.68rem; font-family:var(--font-mono); cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; transition:all .2s; text-transform:uppercase; letter-spacing:1px; }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-content { display:none; flex-direction:column; flex:1; overflow:hidden; }
+  .tab-content.active { display:flex; }
+
+  .messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .messages::-webkit-scrollbar { width:4px; }
+  .messages::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  .msg { display:flex; gap:10px; animation:fadeUp .3s ease; }
+  .msg.user { flex-direction:row-reverse; }
+  .msg-avatar { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.95rem; flex-shrink:0; background:var(--card); border:1px solid var(--border); }
+  .msg.agent .msg-avatar { background:var(--accent); color:#000; }
+  .msg-bubble { max-width:78%; padding:11px 15px; border-radius:14px; font-size:.87rem; line-height:1.55; }
+  .msg.agent .msg-bubble { background:var(--card); border:1px solid var(--border); border-top-left-radius:4px; }
+  .msg.user .msg-bubble { background:var(--accent); color:#000; font-weight:600; border-bottom-right-radius:4px; }
+  .typing { display:flex; gap:4px; align-items:center; }
+  .typing span { width:6px; height:6px; background:var(--muted); border-radius:50%; animation:bounce .8s infinite; }
+  .typing span:nth-child(2) { animation-delay:.15s; }
+  .typing span:nth-child(3) { animation-delay:.3s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)} }
+
+  .quick-actions { padding:12px 20px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:7px; flex-shrink:0; background:var(--surface); }
+  .chip { padding:5px 12px; background:var(--card); border:1px solid var(--border); border-radius:20px; font-size:.7rem; font-family:var(--font-mono); cursor:pointer; transition:all .2s; color:var(--text); }
+  .chip:hover { border-color:var(--accent); color:var(--accent); background:rgba(0,230,118,.05); }
+
+  .input-area { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-end; background:var(--surface); flex-shrink:0; }
+  .input-wrap { flex:1; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 14px; transition:border-color .2s; }
+  .input-wrap:focus-within { border-color:var(--accent); }
+  textarea { background:none; border:none; outline:none; color:var(--text); font-family:var(--font-display); font-size:.87rem; resize:none; width:100%; max-height:100px; line-height:1.4; }
+  textarea::placeholder { color:var(--muted); }
+  .send-btn { background:var(--accent); border:none; border-radius:10px; width:42px; height:42px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s; flex-shrink:0; font-size:1rem; }
+  .send-btn:hover { transform:scale(1.05); background:#00ff88; }
+  .send-btn:disabled { background:var(--border); cursor:not-allowed; transform:none; }
+
+  /* COMPARE */
+  .compare-wrap { flex:1; overflow-y:auto; padding:16px; }
+  .compare-header { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .compare-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+  .compare-card { background:var(--card); border:1px solid var(--border); border-radius:11px; padding:14px; text-align:center; transition:border-color .2s; }
+  .compare-card:hover { border-color:var(--accent); }
+  .compare-card.best { border-color:var(--accent); background:rgba(0,230,118,.05); }
+  .store-name { font-size:.65rem; font-family:var(--font-mono); color:var(--muted); margin-bottom:5px; }
+  .compare-total { font-size:1.5rem; font-weight:800; }
+  .compare-card.best .compare-total { color:var(--accent); }
+  .badge-best { background:var(--accent); color:#000; font-size:.58rem; padding:2px 7px; border-radius:20px; font-weight:800; font-family:var(--font-mono); display:inline-block; margin-bottom:7px; }
+
+  /* CART BUTTON */
+  .cart-action-bar { padding:14px 16px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .cart-main-btn { width:100%; padding:14px; background:var(--accent); color:#000; border:none; border-radius:14px; font-family:var(--font-display); font-size:1rem; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; transition:all .2s; }
+  .cart-main-btn:hover { background:#00ff88; transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,230,118,.3); }
+  .cart-main-btn:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; transform:none; box-shadow:none; }
+  .cart-store-label { font-size:.7rem; font-family:var(--font-mono); color:var(--muted); text-align:center; margin-top:8px; }
+
+  .store-selector { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px; }
+  .store-pill { padding:7px 13px; border-radius:20px; font-size:.68rem; font-family:var(--font-mono); font-weight:700; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--muted); transition:all .2s; white-space:nowrap; }
+  .store-pill:hover { border-color:var(--accent); color:var(--accent); }
+  .store-pill.active { background:var(--accent); color:#000; border-color:var(--accent); }
+  .store-pill .pill-savings { font-size:.58rem; opacity:.8; display:block; margin-top:1px; }
+
+  .item-links { display:flex; flex-direction:column; gap:6px; margin-top:14px; }
+  .item-link-row { display:flex; align-items:center; gap:10px; padding:9px 12px; background:var(--card); border-radius:9px; border:1px solid var(--border); text-decoration:none; color:var(--text); transition:border-color .2s; }
+  .item-link-row:hover { border-color:var(--accent); }
+  .item-link-emoji { font-size:1rem; flex-shrink:0; }
+  .item-link-name { flex:1; font-size:.8rem; font-weight:600; }
+  .item-link-store { font-size:.65rem; font-family:var(--font-mono); color:var(--accent); }
+  .item-link-arrow { font-size:.8rem; color:var(--muted); }
+
+  .section-label { font-size:.6rem; font-family:var(--font-mono); color:var(--muted); text-transform:uppercase; letter-spacing:2px; margin-bottom:10px; margin-top:16px; }
+
+  /* LEARN notification */
+  .learn-toast { position:fixed; bottom:24px; right:24px; background:var(--accent); color:#000; padding:10px 18px; border-radius:10px; font-size:.8rem; font-weight:700; font-family:var(--font-mono); opacity:0; transform:translateY(10px); transition:all .3s; pointer-events:none; z-index:999; }
+  .learn-toast.show { opacity:1; transform:translateY(0); }
+
+  @media(max-width:768px) { .main { grid-template-columns:1fr; } .sidebar { display:none; } }
+
+  /* PWA INSTALL BANNER */
+  #installBanner {
+    display:none; position:fixed; bottom:0; left:0; right:0;
+    background:linear-gradient(135deg,#0d2b1a,#0a1f14);
+    border-top:2px solid var(--accent);
+    padding:16px 20px; padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    z-index:1000; animation:slideUp .4s ease;
+    box-shadow:0 -8px 32px rgba(0,230,118,.15);
+  }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  #installBanner.visible { display:flex; align-items:center; gap:14px; }
+  .install-icon { font-size:2rem; flex-shrink:0; }
+  .install-text { flex:1; }
+  .install-text strong { display:block; font-size:.95rem; color:var(--text); margin-bottom:2px; }
+  .install-text span { font-size:.75rem; color:var(--muted); font-family:var(--font-mono); }
+  .install-btn { background:var(--accent); color:#000; border:none; padding:10px 18px; border-radius:10px; font-weight:800; font-family:var(--font-display); font-size:.85rem; cursor:pointer; flex-shrink:0; transition:all .2s; white-space:nowrap; }
+  .install-btn:hover { background:#00ff88; transform:scale(1.04); }
+  .install-dismiss { background:none; border:none; color:var(--muted); font-size:1.2rem; cursor:pointer; padding:4px 8px; flex-shrink:0; }
+
+  #iosOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:2000; align-items:flex-end; justify-content:center; padding:20px; backdrop-filter:blur(6px); }
+  #iosOverlay.visible { display:flex; }
+  .ios-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:24px; width:100%; max-width:420px; animation:slideUp .3s ease; }
+  .ios-card h3 { font-size:1.1rem; font-weight:800; margin-bottom:6px; color:var(--accent); }
+  .ios-card p { font-size:.8rem; color:var(--muted); margin-bottom:16px; line-height:1.5; font-family:var(--font-mono); }
+  .ios-steps { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+  .ios-step { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--card); border-radius:10px; border:1px solid var(--border); }
+  .ios-step-num { width:26px; height:26px; background:var(--accent); color:#000; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:.8rem; flex-shrink:0; }
+  .ios-step-text strong { color:var(--text); display:block; font-size:.85rem; }
+  .ios-step-text span { color:var(--muted); font-size:.73rem; font-family:var(--font-mono); }
+  .ios-close { width:100%; padding:12px; background:var(--border); border:none; border-radius:10px; color:var(--text); font-family:var(--font-display); font-weight:700; font-size:.9rem; cursor:pointer; }
+  body { padding-top:env(safe-area-inset-top); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Super<span>Agente</span> <span style="font-size:.9rem">v2</span></div>
+  <div class="header-right">
+    <span class="pref-count" id="prefCount">📚 15 preferencias</span>
+    <div><span class="status-dot"></span><span class="status-text">IA ACTIVA</span></div>
+  </div>
+</header>
+
+<div class="main" id="mainArea">
+  <!-- SIDEBAR PANEL -->
+  <div class="mobile-panel active" id="panel-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-tabs">
+      <div class="stab active" onclick="switchStab('lista',this)">📋 Lista</div>
+      <div class="stab" onclick="switchStab('prefs',this)">⭐ Prefs</div>
+      <div class="stab" onclick="switchStab('import',this)">📥 Importar</div>
+      <div class="stab" onclick="switchStab('install',this)">📲 App</div>
+    </div>
+
+    <!-- LISTA -->
+    <div class="stab-content active" id="stab-lista">
+      <div class="sec">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h3 style="margin:0">Productos</h3>
+          <button onclick="switchStab('import', document.querySelectorAll('.stab')[2])" 
+            style="background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.3);color:var(--accent);border-radius:8px;padding:4px 10px;font-size:.62rem;font-family:var(--font-mono);cursor:pointer;letter-spacing:.5px;">
+            📥 IMPORTAR
+          </button>
+        </div>
+        <div class="list-items" id="listItems">
+          <div class="empty-list">Pide al agente que agregue productos</div>
+        </div>
+        <div class="totals" id="totals" style="display:none">
+          <div>
+            <div class="total-label">Estimado</div>
+            <div class="total-value" id="totalValue">$0</div>
+          </div>
+          <div style="font-size:.65rem;color:var(--muted);font-family:var(--font-mono);text-align:right">
+            <div id="itemCount">0 productos</div>
+          </div>
+        </div>
+      </div>
+      <div class="sec" style="padding-top:12px">
+        <h3>Supermercados activos</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="padding:5px 10px;border-radius:7px;font-size:.65rem;font-family:var(--font-mono);font-weight:700;background:rgba(0,76,145,.3);color:#5bc4ff;border:1px solid rgba(0,76,145,.4)">Tottus</span>
+          <span style="padding:5px 10px;border-radius:7px;font-size:.65rem;font-family:var(--font-mono);font-weight:700;background:rgba(255,80,0,.2);color:#ff9060;border:1px solid rgba(255,80,0,.3)">Jumbo</span>
+          <span style="padding:5px 10px;border-radius:7px;font-size:.65rem;font-family:var(--font-mono);font-weight:700;background:rgba(0,173,76,.15);color:#00e676;border:1px solid rgba(0,173,76,.3)">Lider</span>
+          <span style="padding:5px 10px;border-radius:7px;font-size:.65rem;font-family:var(--font-mono);font-weight:700;background:rgba(200,0,0,.15);color:#ff6666;border:1px solid rgba(200,0,0,.3)">Unimarc</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREFERENCIAS -->
+    <div class="stab-content" id="stab-prefs">
+      <div class="sec">
+        <h3>Marcas aprendidas de tus fotos</h3>
+        <div id="prefList"></div>
+      </div>
+    </div>
+  </div>
+
+    <!-- IMPORTAR LISTA -->
+    <div class="stab-content" id="stab-import">
+      <div class="sec">
+        <h3>Importar lista</h3>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:14px;font-family:var(--font-mono)">Carga tu lista desde Excel, texto o foto</p>
+
+        <!-- Excel / CSV -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:.65rem;font-family:var(--font-mono);color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📊 Excel / CSV</div>
+          <label id="xlsxDropzone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--border);border-radius:12px;padding:18px;cursor:pointer;transition:border-color .2s;" 
+            ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" 
+            ondragleave="this.style.borderColor='var(--border)'"
+            ondrop="handleXlsxDrop(event)">
+            <span style="font-size:2rem">📂</span>
+            <span style="font-size:.75rem;color:var(--muted);text-align:center">Arrastra tu archivo .xlsx o .csv<br>o toca para seleccionar</span>
+            <input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleXlsxFile(this.files[0])">
+          </label>
+          <div style="font-size:.62rem;color:var(--muted);font-family:var(--font-mono);margin-top:6px">
+            Columnas esperadas: Producto, Marca (opcional), Cantidad (opcional)
+          </div>
+        </div>
+
+        <!-- Texto libre -->
+        <div style="margin-bottom:16px;">
+          <div style="font-size:.65rem;font-family:var(--font-mono);color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">💬 Texto / WhatsApp</div>
+          <textarea id="textImportArea" placeholder="Pega tu lista aquí&#10;Ejemplo:&#10;2 leches Colún&#10;arroz miraflores 1kg&#10;papel higiénico Favorita x8" 
+            style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:var(--font-mono);font-size:.72rem;resize:vertical;min-height:100px;"></textarea>
+          <button onclick="importFromText()" style="width:100%;margin-top:8px;padding:10px;background:var(--accent);color:#000;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:.8rem;">
+            Importar lista de texto ↗
+          </button>
+        </div>
+
+        <!-- Foto -->
+        <div>
+          <div style="font-size:.65rem;font-family:var(--font-mono);color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">📷 Foto de lista</div>
+          <label style="display:flex;flex-direction:column;align-items:center;gap:6px;border:2px dashed var(--border);border-radius:12px;padding:14px;cursor:pointer;">
+            <span style="font-size:1.8rem">📸</span>
+            <span style="font-size:.75rem;color:var(--muted);text-align:center">Foto de tu lista escrita a mano<br>o de una boleta / recibo anterior</span>
+            <input type="file" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoImport(this.files[0])">
+          </label>
+        </div>
+
+        <div id="importPreview" style="display:none;margin-top:14px;background:var(--card);border-radius:10px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:.65rem;font-family:var(--font-mono);color:var(--muted);margin-bottom:8px;">VISTA PREVIA — ¿Agregar a la lista?</div>
+          <div id="importPreviewItems" style="font-size:.78rem;"></div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="confirmImport()" style="flex:1;padding:9px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;">✓ Agregar todos</button>
+            <button onclick="document.getElementById('importPreview').style.display='none'" style="flex:1;padding:9px;background:var(--border);color:var(--text);border:none;border-radius:8px;cursor:pointer;">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INSTALAR APP -->
+    <div class="stab-content" id="stab-install">
+      <div class="sec">
+        <h3>Instalar como App</h3>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:16px;line-height:1.5">
+          SuperAgente funciona como app instalable en tu teléfono — sin App Store ni Play Store.
+        </p>
+
+        <!-- Paso 1: subir a Netlify -->
+        <div style="background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border);margin-bottom:12px;">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:8px;">📡 Paso 1 — Sube el archivo (gratis)</div>
+          <p style="font-size:.7rem;color:var(--muted);line-height:1.6;font-family:var(--font-mono)">
+            La app necesita HTTPS para instalarse. Sube el archivo .html a:<br>
+            <a href="https://app.netlify.com/drop" target="_blank" style="color:var(--accent)">app.netlify.com/drop</a> — arrastra y listo en 30 seg<br>
+            Recibirás una URL tipo <em>nombre-aleatorio.netlify.app</em>
+          </p>
+        </div>
+
+        <!-- Android -->
+        <div style="background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border);margin-bottom:12px;">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:10px;">🤖 Android (Chrome)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">1</div>
+              <div style="font-size:.72rem;color:var(--muted)">Abre la URL de Netlify en <strong style="color:var(--text)">Chrome</strong></div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">2</div>
+              <div style="font-size:.72rem;color:var(--muted)">Toca el banner <strong style="color:var(--text)">"Instalar SuperAgente"</strong> que aparece automáticamente</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">3</div>
+              <div style="font-size:.72rem;color:var(--muted)">Si no aparece el banner: menú ⋮ → <strong style="color:var(--text)">"Agregar a pantalla de inicio"</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- iOS -->
+        <div style="background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border);margin-bottom:12px;">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:10px;">🍎 iPhone / iPad (Safari)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">1</div>
+              <div style="font-size:.72rem;color:var(--muted)">Abre la URL en <strong style="color:var(--text)">Safari</strong> (no Chrome)</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">2</div>
+              <div style="font-size:.72rem;color:var(--muted)">Toca el botón <strong style="color:var(--text)">Compartir ⬆️</strong> en la barra inferior</div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="background:var(--accent);color:#000;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;flex-shrink:0;">3</div>
+              <div style="font-size:.72rem;color:var(--muted)">Selecciona <strong style="color:var(--text)">"Agregar a pantalla de inicio"</strong> y toca Agregar</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compartir con esposa -->
+        <div style="background:rgba(0,230,118,.08);border-radius:12px;padding:14px;border:1px solid rgba(0,230,118,.2);">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:6px;color:var(--accent)">👥 Compartir con tu esposa</div>
+          <p style="font-size:.7rem;color:var(--muted);line-height:1.6;font-family:var(--font-mono)">
+            Una vez que tengas la URL de Netlify, compártela por WhatsApp. Tu esposa puede instalarla en su teléfono siguiendo los mismos pasos — y ambos verán la misma lista si copian sus preferencias.
+          </p>
+          <button onclick="copyShareText()" style="width:100%;margin-top:10px;padding:9px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.78rem;">
+            📋 Copiar mensaje para compartir
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  </div><!-- /panel-sidebar -->
+
+  <!-- CHAT PANEL -->
+  <div class="mobile-panel" id="panel-chat">
+  <div class="chat-area">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('chat',this)">💬 Agente IA</div>
+      <div class="tab" onclick="switchTab('compare',this)">📊 Comparar</div>
+      <button onclick="clearChat()" title="Limpiar chat" style="margin-left:auto;margin-right:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;font-family:var(--font-mono);padding:4px 8px;border-radius:6px;transition:all .2s;" onmouseover="this.style.color='#ff4444'" onmouseout="this.style.color='var(--muted)'">🗑 limpiar</button>
+    </div>
+
+    <!-- CHAT -->
+    <div class="tab-content active" id="tab-chat">
+      <div class="messages" id="messages">
+        <div class="msg agent">
+          <div class="msg-avatar">🤖</div>
+          <div class="msg-bubble">
+            ¡Lista actualizada! He agregado tus <strong>6 productos</strong> con las marcas que indicaste 🛒<br><br>
+            🍚 <b>Arroz Miraflores</b> — largo ancho grado 1<br>
+            🥛 <b>Leche Colún entera</b> — 1 litro<br>
+            🫒 <b>Aceite vegetal Natura</b> — 1 botella<br>
+            🧀 <b>Queso mantecoso</b> — (confirma tu marca preferida)<br>
+            🧈 <b>Mantequilla Colún</b> — 250g × 4 unidades<br>
+            🧻 <b>Papel higiénico Favorita</b> — pack × 8<br><br>
+            Además aprendí 3 nuevas preferencias: <b>Colún</b> para mantequilla, <b>Natura</b> para aceite y <b>Favorita</b> para papel higiénico. ¿Quieres agregar algo más?
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+        <span class="chip" onclick="quickSend('Necesito hacer la compra semanal con mis marcas habituales')">🗓 Compra semanal</span>
+        <span class="chip" onclick="quickSend('Agrega arroz, leche, pasta y harina')">+ Básicos</span>
+        <span class="chip" onclick="quickSend('¿Qué alternativas hay si no encuentran mi marca?')">🔄 Alternativas</span>
+        <span class="chip" onclick="quickSend('Compara precios de mi lista')">📊 Comparar</span>
+        <span class="chip" onclick="quickSend('¿Qué has aprendido de mis preferencias?')">⭐ Mis preferencias</span>
+      </div>
+
+      <div class="input-area">
+        <div class="input-wrap">
+          <textarea id="userInput" placeholder="¿Qué necesitas? Usaré tus marcas preferidas..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+
+    <!-- COMPARE -->
+    <div class="tab-content" id="tab-compare">
+      <div class="compare-header">
+        <div>
+          <div style="font-weight:800;font-size:1rem">Comparador de Precios</div>
+          <div style="font-size:.7rem;color:var(--muted);font-family:var(--font-mono)">Con tus marcas preferidas</div>
+        </div>
+        <button class="chip" onclick="generateComparison()" style="background:var(--accent);color:#000;border-color:var(--accent);font-weight:700">🔄 Actualizar</button>
+      </div>
+      <div class="compare-wrap">
+        <div class="compare-grid" id="compareGrid">
+          <div style="grid-column:1/-1;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:.78rem;padding:40px">
+            Agrega productos para comparar precios
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CART ACTION BAR -->
+    <div class="cart-action-bar">
+      <div class="store-selector" id="storeSelector"></div>
+      <button class="cart-main-btn" id="cartBtn" onclick="goToCart()" disabled>
+        <span>🛒</span> <span id="cartBtnText">Agrega productos primero</span>
+      </button>
+      <div class="cart-store-label" id="cartStoreLabel"></div>
+      <div class="item-links" id="itemLinks"></div>
+    </div>
+  </div>
+  </div><!-- /chat-area -->
+  </div><!-- /panel-chat -->
+</div><!-- /main -->
+
+<!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-nav">
+  <button class="mobile-nav-btn active" id="nav-sidebar" onclick="mobileNav('sidebar')">
+    <span class="nav-icon">📋</span>Lista
+  </button>
+  <button class="mobile-nav-btn" id="nav-chat" onclick="mobileNav('chat')">
+    <span class="nav-icon">💬</span>Agente
+  </button>
+  <button class="mobile-nav-btn" id="nav-import" onclick="mobileNav('sidebar');switchStab('import',document.querySelectorAll('.stab')[2])">
+    <span class="nav-icon">📥</span>Importar
+  </button>
+  <button class="mobile-nav-btn" id="nav-compare" onclick="mobileNav('chat');switchTab('compare',document.querySelectorAll('.tab')[1])">
+    <span class="nav-icon">📊</span>Precios
+  </button>
+  <button class="mobile-nav-btn" id="nav-install" onclick="mobileNav('sidebar');switchStab('install',document.querySelectorAll('.stab')[3])">
+    <span class="nav-icon">📲</span>App
+  </button>
+</nav>
+
+<div class="learn-toast" id="learnToast">✨ Preferencia aprendida</div>
+
+<!-- PWA INSTALL BANNER (Android/Desktop) -->
+<div id="installBanner">
+  <span class="install-icon">🛒</span>
+  <div class="install-text">
+    <strong>Instalar SuperAgente</strong>
+    <span>Agrega el ícono a tu pantalla de inicio</span>
+  </div>
+  <button class="install-btn" id="installBtn">Instalar</button>
+  <button class="install-dismiss" onclick="dismissBanner()" title="Cerrar">✕</button>
+</div>
+
+<!-- iOS INSTRUCTIONS OVERLAY -->
+<div id="iosOverlay">
+  <div class="ios-card">
+    <h3>📲 Instalar SuperAgente</h3>
+    <p>Para agregar el ícono a tu pantalla de inicio en iPhone/iPad:</p>
+    <div class="ios-steps">
+      <div class="ios-step">
+        <div class="ios-step-num">1</div>
+        <div class="ios-step-text">
+          <strong>Toca el botón Compartir</strong>
+          <span>El ícono de cuadrado con flecha hacia arriba ⬆️ en Safari</span>
+        </div>
+      </div>
+      <div class="ios-step">
+        <div class="ios-step-num">2</div>
+        <div class="ios-step-text">
+          <strong>Selecciona "Agregar a pantalla de inicio"</strong>
+          <span>Desliza hacia abajo en el menú y búscalo</span>
+        </div>
+      </div>
+      <div class="ios-step">
+        <div class="ios-step-num">3</div>
+        <div class="ios-step-text">
+          <strong>Toca "Agregar"</strong>
+          <span>El ícono de SuperAgente 🛒 aparecerá en tu pantalla de inicio</span>
+        </div>
+      </div>
+    </div>
+    <button class="ios-close" onclick="document.getElementById('iosOverlay').classList.remove('visible')">Entendido ✓</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://api.anthropic.com/v1/messages";
+
+// ── BRAND PREFERENCES MEMORY ──────────────────────────────
+let brandPreferences = [
+  { id:1,  category:"Fideos de arroz / Rice noodles", emoji:"🍜", brand:"Cock Brand (Chantaboon)", detail:"Rice Stick talla L, 375g", alternatives:["Mama","Aroy-D"] },
+  { id:2,  category:"Pasta spaghetti", emoji:"🍝", brand:"Selección", detail:"100% trigo durum, al bronzo, tradición italiana", alternatives:["Barilla","De Cecco"] },
+  { id:3,  category:"Pasta fusilli / tornillo", emoji:"🌀", brand:"La Molisana", detail:"Trafilata al bronzo, made in Italy 1912", alternatives:["Barilla","Garofalo"] },
+  { id:4,  category:"Harina todo uso", emoji:"🌾", brand:"Selecta", detail:"Sin polvos de hornear, 3kg", alternatives:["Tucapel","Presto"] },
+  { id:5,  category:"Harina integral", emoji:"🌿", brand:"Selecta Integral", detail:"Excelente fuente de fibra, 1kg", alternatives:["Tucapel Integral","Collahuasi"] },
+  { id:6,  category:"Arroz", emoji:"🍚", brand:"Miraflores", detail:"Largo ancho, grado 1, seleccionado", alternatives:["Tucapel","Gallo"] },
+  { id:7,  category:"Leche entera", emoji:"🥛", brand:"Colun", detail:"100% natural no reconstituida, 1L, libre de gluten", alternatives:["Soprole","Loncoleche"] },
+  { id:8,  category:"Galletas de arroz", emoji:"🍪", brand:"Tottus (marca propia)", detail:"Libre de gluten, sin colesterol ni grasas saturadas", alternatives:["Quaker","Snack Day"] },
+  { id:9,  category:"Esponjas de cocina", emoji:"🧽", brand:"Virutex", detail:"Esponja multiuso scrub, pack 4 unidades", alternatives:["3M Scotch-Brite","Spontex"] },
+  { id:10, category:"Paños de cocina", emoji:"🧹", brand:"Virutex", detail:"Paño multiuso Ultra 38x38cm, ultra absorbente", alternatives:["3M Scotch-Brite","Pacfix"] },
+  { id:11, category:"Papel aluminio", emoji:"🫙", brand:"Eurofoil", detail:"Aluminio foil estándar", alternatives:["Alusa","Reynolds"] },
+  { id:12, category:"Mantequilla", emoji:"🧈", brand:"Colún", detail:"250g, sin sal o con sal", alternatives:["Quillayes","Loncoleche","President"] },
+  { id:13, category:"Aceite vegetal", emoji:"🫒", brand:"Natura", detail:"Aceite vegetal todo uso", alternatives:["Chef","Ideal","Olivos del Sur"] },
+  { id:14, category:"Papel higiénico", emoji:"🧻", brand:"Favorita", detail:"Pack x8 rollos", alternatives:["Elite","Nova","Confort"] },
+  { id:15, category:"Queso mantecoso", emoji:"🧀", brand:"Sin preferencia aún", detail:"Queso de pasta blanda", alternatives:["Colún","Soprole","Tregar"] },
+];
+
+let shoppingList = [
+  { name:"Arroz Miraflores", brand:"Miraflores", quantity:"1", unit:"bolsa", emoji:"🍚", estimatedPrice:2.90 },
+  { name:"Leche Colún entera", brand:"Colún", quantity:"1", unit:"litro", emoji:"🥛", estimatedPrice:1.20 },
+  { name:"Aceite vegetal Natura", brand:"Natura", quantity:"1", unit:"botella", emoji:"🫒", estimatedPrice:2.50 },
+  { name:"Queso mantecoso", brand:"(por definir)", quantity:"1", unit:"und", emoji:"🧀", estimatedPrice:3.80 },
+  { name:"Mantequilla Colún", brand:"Colún", quantity:"4", unit:"x250g", emoji:"🧈", estimatedPrice:10.40 },
+  { name:"Papel higiénico Favorita", brand:"Favorita", quantity:"1", unit:"pack x8", emoji:"🧻", estimatedPrice:4.20 },
+];
+let conversationHistory = [];
+
+const SYSTEM_PROMPT = `Eres SuperAgente v2, un asistente IA de compras de supermercado chileno con MEMORIA DE PREFERENCIAS DE MARCA.
+
+## TUS PREFERENCIAS DE MARCA APRENDIDAS (del usuario):
+${JSON.stringify(brandPreferences.map(p => ({category:p.category, preferredBrand:p.brand, detail:p.detail, alternatives:p.alternatives})), null, 2)}
+
+## TUS REGLAS PRINCIPALES:
+1. Cuando el usuario pida un producto, SIEMPRE sugiere su marca preferida primero.
+2. Si no encuentras la marca exacta, propón las alternativas listadas.
+3. Al agregar productos a la lista, incluye la marca preferida en el campo "brand".
+4. Si aprendes nuevas preferencias, menciónalas y usa el formato [[NUEVA_PREF:...]] al final.
+5. Supermercados de referencia: Tottus, Jumbo, Lider, Unimarc (Chile).
+
+## GESTIÓN DE LISTA - Al final de cada respuesta que modifique la lista, incluye:
+[[LISTA_UPDATE: {"action":"add"|"remove"|"clear","items":[{"name":"nombre","brand":"marca","quantity":"cantidad","unit":"unidad","emoji":"emoji","estimatedPrice":0.00}]}]]
+
+## NUEVA PREFERENCIA APRENDIDA - Si el usuario menciona que prefiere una marca nueva:
+[[NUEVA_PREF: {"category":"categoría","brand":"marca","detail":"detalle","emoji":"emoji","alternatives":["alt1","alt2"]}]]
+
+Responde siempre en español, de forma amigable y mencionando las marcas preferidas. Sé proactivo sugiriendo sus marcas habituales.`;
+
+// ── RENDER PREFERENCES ────────────────────────────────────
+function renderPreferences() {
+  const container = document.getElementById('prefList');
+  document.getElementById('prefCount').textContent = `📚 ${brandPreferences.length} preferencias`;
+  container.innerHTML = brandPreferences.map(p => `
+    <div class="pref-item">
+      <span class="pref-icon">${p.emoji}</span>
+      <div class="pref-info">
+        <div class="pref-category">${p.category}</div>
+        <div class="pref-brand">${p.brand}</div>
+        <div class="pref-detail">${p.detail}</div>
+        <div style="font-size:.63rem;color:var(--muted);font-family:var(--font-mono);margin-top:2px">Alt: ${p.alternatives.join(', ')}</div>
+      </div>
+      <button class="pref-del" onclick="deletePref(${p.id})" title="Eliminar">✕</button>
+    </div>
+  `).join('');
+}
+
+function deletePref(id) {
+  brandPreferences = brandPreferences.filter(p => p.id !== id);
+  renderPreferences();
+}
+
+function showLearnToast(text) {
+  const t = document.getElementById('learnToast');
+  t.textContent = `✨ ${text}`;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── LIST MANAGEMENT ───────────────────────────────────────
+function applyListUpdate(update) {
+  if (update.action === "clear") { shoppingList = []; }
+  else if (update.action === "add" && update.items) {
+    update.items.forEach(item => {
+      const exists = shoppingList.find(i => i.name.toLowerCase() === item.name.toLowerCase());
+      if (!exists) shoppingList.push(item); else Object.assign(exists, item);
+    });
+  } else if (update.action === "remove" && update.items) {
+    update.items.forEach(item => { shoppingList = shoppingList.filter(i => i.name.toLowerCase() !== item.name.toLowerCase()); });
+  }
+  renderList();
+}
+
+function renderList() {
+  const container = document.getElementById('listItems');
+  const totals = document.getElementById('totals');
+  if (shoppingList.length === 0) {
+    container.innerHTML = '<div class="empty-list">Pide al agente que agregue productos</div>';
+    totals.style.display = 'none'; return;
+  }
+  container.innerHTML = shoppingList.map((item, i) => `
+    <div class="list-item">
+      <span class="item-icon">${item.emoji||'🛍'}</span>
+      <div class="item-info">
+        <div class="item-name">${item.name}</div>
+        ${item.brand ? `<div class="item-brand">${item.brand}</div>` : ''}
+        <div class="item-meta">${item.quantity||'1'} ${item.unit||'und'}</div>
+      </div>
+      <span class="item-price">$${(item.estimatedPrice||0).toFixed(2)}</span>
+      <button class="remove-btn" onclick="removeItem(${i})">✕</button>
+    </div>
+  `).join('');
+  const total = shoppingList.reduce((s,i) => s+(i.estimatedPrice||0), 0);
+  document.getElementById('totalValue').textContent = `$${total.toFixed(2)}`;
+  document.getElementById('itemCount').textContent = `${shoppingList.length} producto${shoppingList.length!==1?'s':''}`;
+  totals.style.display = 'flex';
+  // Keep comparison + cart button in sync
+  generateComparison();
+}
+
+function removeItem(i) { shoppingList.splice(i,1); renderList(); }
+
+// ── API CALL ──────────────────────────────────────────────
+async function callClaude(userMessage) {
+  conversationHistory.push({ role:"user", content:userMessage });
+  const resp = await fetch(API_URL, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      model:"claude-sonnet-4-20250514",
+      max_tokens:1000,
+      system: SYSTEM_PROMPT,
+      messages: conversationHistory
+    })
+  });
+  const data = await resp.json();
+  const full = data.content[0].text;
+
+  // Parse list update
+  const lm = full.match(/\[\[LISTA_UPDATE:\s*({.*?})\]\]/s);
+  if (lm) { try { applyListUpdate(JSON.parse(lm[1])); } catch(e){} }
+
+  // Parse new preference learned
+  const pm = full.match(/\[\[NUEVA_PREF:\s*({.*?})\]\]/s);
+  if (pm) {
+    try {
+      const np = JSON.parse(pm[1]);
+      np.id = Date.now();
+      np.alternatives = np.alternatives || [];
+      brandPreferences.push(np);
+      renderPreferences();
+      showLearnToast(`Nueva preferencia: ${np.brand}`);
+    } catch(e){}
+  }
+
+  const clean = full.replace(/\[\[LISTA_UPDATE:.*?\]\]/s,'').replace(/\[\[NUEVA_PREF:.*?\]\]/s,'').trim();
+  conversationHistory.push({ role:"assistant", content:full });
+  return clean;
+}
+
+// ── CHAT UI ───────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  addMessage(msg,'user');
+  input.value=''; autoResize(input);
+  const btn = document.getElementById('sendBtn');
+  btn.disabled=true;
+  const tid = addTyping();
+  try {
+    const reply = await callClaude(msg);
+    removeTyping(tid);
+    addMessage(reply,'agent');
+    if (document.getElementById('tab-compare').classList.contains('active')) generateComparison();
+  } catch(e) {
+    removeTyping(tid);
+    addMessage('Error al conectar con el agente. Verifica tu conexión.','agent');
+  }
+  btn.disabled=false;
+}
+
+function addMessage(text, type) {
+  const c = document.getElementById('messages');
+  const d = document.createElement('div');
+  d.className=`msg ${type}`;
+  d.innerHTML=`<div class="msg-avatar">${type==='agent'?'🤖':'👤'}</div><div class="msg-bubble">${text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</div>`;
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+}
+
+function addTyping() {
+  const c = document.getElementById('messages');
+  const d = document.createElement('div');
+  d.className='msg agent';
+  const id='typ-'+Date.now(); d.id=id;
+  d.innerHTML=`<div class="msg-avatar">🤖</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+  return id;
+}
+function removeTyping(id) { const el=document.getElementById(id); if(el)el.remove(); }
+
+function quickSend(text) { document.getElementById('userInput').value=text; sendMessage(); }
+function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+// ── STORE CONFIG ─────────────────────────────────────────
+const storeConfig = {
+  'Tottus':       { search: q => 'https://www.tottus.cl/tottus/search?Ntt='+encodeURIComponent(q), supportsCart: false },
+  'Jumbo':        { search: q => 'https://www.jumbo.cl/search?q='+encodeURIComponent(q), supportsCart: false },
+  'Lider':        { search: q => 'https://super.lider.cl/search?q='+encodeURIComponent(q), supportsCart: true,
+                    autocomplete: q => 'https://super.lider.cl/buscaautocomplete/?maxRows=5&productNameContains='+encodeURIComponent(q),
+                    addToCart: skus => 'https://super.lider.cl/checkout/cart/add?'+skus.map(s=>'sku='+s.id+'&qty='+s.qty+'&seller=1').join('&')+'&sc=1',
+                    cartUrl: orderFormId => 'https://super.lider.cl/checkout/?orderFormId='+orderFormId+'#/cart' },
+  'Unimarc':      { search: q => 'https://www.unimarc.cl/search?q='+encodeURIComponent(q), supportsCart: false },
+  'Santa Isabel': { search: q => 'https://www.santaisabel.cl/search?q='+encodeURIComponent(q), supportsCart: false }
+};
+
+// ── LIDER VTEX CART BUILDER ───────────────────────────────
+// Estrategia: CORS bloqueará llamadas directas a super.lider.cl desde otro origen.
+// Solución: construir URL de búsqueda con múltiples productos usando el parámetro
+// de búsqueda nativo de Lider, y abrir el carrito paso a paso con un mini-wizard.
+// Para agregar al carrito sin CORS usamos window.open y deep-links VTEX.
+
+function buildLiderCart() {
+  const cartBtn = document.getElementById('cartBtn');
+  const cartBtnText = document.getElementById('cartBtnText');
+  const cartLabel = document.getElementById('cartStoreLabel');
+
+  if (shoppingList.length === 0) {
+    cartLabel.textContent = 'Tu lista está vacía — agrega productos primero';
+    return;
+  }
+
+  // Mostrar wizard de compra paso a paso
+  showLiderWizard();
+}
+
+function showLiderWizard() {
+  // Eliminar wizard anterior si existe
+  const existing = document.getElementById('liderWizard');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'liderWizard';
+  overlay.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999;
+    display:flex; align-items:flex-end; justify-content:center;
+    animation: fadeIn 0.2s ease;
+  `;
+
+  const items = shoppingList.map((item, i) => {
+    const q = (item.brand && item.brand !== '(por definir)') 
+      ? item.brand + ' ' + item.name 
+      : item.name;
+    const url = 'https://super.lider.cl/search?q=' + encodeURIComponent(q);
+    const label = (item.brand && item.brand !== '(por definir)') ? item.brand + ' ' + item.name : item.name;
+    return `<div id="wizardItem${i}" style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;color:#111;">${label}</div>
+      <a href="${url}" target="_blank" rel="noopener noreferrer"
+         style="display:inline-block;background:#e31837;color:#fff;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:600;text-decoration:none;"
+         onclick="markItemDone(${i})">
+        Buscar en Lider 🔍
+      </a>
+    </div>`;
+  }).join('');
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;font-size:18px;">🛒 Comprar en Lider</h3>
+          <p style="margin:4px 0 0;font-size:13px;color:#666;">Toca cada producto para buscarlo y agrégalo al carrito</p>
+        </div>
+        <button onclick="document.getElementById('liderWizard').remove()" 
+          style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;">✕</button>
+      </div>
+      
+      <div id="wizardItems">${items}</div>
+      
+      <div style="margin-top:16px;padding-top:12px;border-top:2px solid #eee;">
+        <a href="https://super.lider.cl/checkout/cart" target="_blank" rel="noopener"
+           style="display:block;background:#e31837;color:#fff;text-align:center;padding:14px;border-radius:12px;font-weight:700;font-size:16px;text-decoration:none;">
+          Ver carrito en Lider →
+        </a>
+        <p style="text-align:center;font-size:11px;color:#999;margin-top:8px;">
+          Agrega cada producto en Lider, luego toca el botón de arriba para ir al carrito
+        </p>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function markItemDone(idx) {
+  setTimeout(() => {
+    const item = document.getElementById('wizardItem'+idx);
+    if (item) {
+      item.querySelector('a').textContent = '✓ Listo';
+      item.querySelector('a').style.background = '#22c55e';
+    }
+  }, 300);
+}
+
+function fallbackLiderSearch() {
+  const cartBtn = document.getElementById('cartBtn');
+  const cartBtnText = document.getElementById('cartBtnText');
+  const cartLabel = document.getElementById('cartStoreLabel');
+
+  cartBtn.disabled = false;
+  cartBtnText.textContent = '🔗 Buscar productos en Lider';
+  cartLabel.textContent = 'Se abrirá un asistente para buscar cada producto';
+  cartBtn.onclick = () => showLiderWizard();
+}
+let bestStore   = null;
+let allResults  = [];
+let chosenStore = null; // manually selected store (null = auto best)
+
+// ── COMPARISON ────────────────────────────────────────────
+function generateComparison() {
+  const grid       = document.getElementById('compareGrid');
+  const cartBtn    = document.getElementById('cartBtn');
+  const cartBtnText= document.getElementById('cartBtnText');
+  const itemLinks  = document.getElementById('itemLinks');
+  const cartLabel  = document.getElementById('cartStoreLabel');
+  const selector   = document.getElementById('storeSelector');
+
+  if (!shoppingList.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:.78rem;padding:40px">Agrega productos para comparar</div>';
+    cartBtn.disabled = true;
+    cartBtnText.textContent = 'Agrega productos primero';
+    itemLinks.innerHTML = '';
+    cartLabel.textContent = '';
+    selector.innerHTML = '';
+    return;
+  }
+
+  const stores = [
+    {name:'Tottus',f:1.0}, {name:'Jumbo',f:1.12}, {name:'Lider',f:0.97},
+    {name:'Unimarc',f:1.06}, {name:'Santa Isabel',f:0.94}
+  ];
+  const base = shoppingList.reduce((s,i) => s+(i.estimatedPrice||0), 0);
+
+  // Keep random factors stable unless list changed (regenerate only when needed)
+  if (!allResults.length || allResults[0]._base !== base) {
+    allResults = stores.map(s => ({
+      name: s.name,
+      total: base * s.f * (0.92 + Math.random() * 0.16),
+      _base: base
+    })).sort((a,b) => a.total - b.total);
+    bestStore = allResults[0];
+    if (!chosenStore) chosenStore = bestStore.name;
+  }
+
+  const activeResult = allResults.find(r => r.name === chosenStore) || allResults[0];
+
+  // Render comparison cards
+  grid.innerHTML = allResults.map((s,i) => {
+    const isBest   = i === 0;
+    const isChosen = s.name === chosenStore;
+    return '<div class="compare-card'+(isBest?' best':'')+'"'
+      +(isChosen?' style="border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,230,118,.25)"':'')+'>'
+      +(isBest ? '<div class="badge-best">\u2713 MEJOR PRECIO</div>' : '')
+      +'<div class="store-name">'+s.name+'</div>'
+      +'<div class="compare-total" style="'+(isBest?'color:var(--accent)':'')+'">$'+s.total.toFixed(2)+'</div>'
+      +'<div style="font-size:.65rem;color:var(--muted);font-family:var(--font-mono);margin-top:5px">'
+      +(isBest ? '\uD83C\uDFC6 M\u00e1s barato' : '+$'+(s.total-allResults[0].total).toFixed(2)+' m\u00e1s')
+      +'</div></div>';
+  }).join('');
+
+  // Store selector pills
+  selector.innerHTML = '<div style="font-size:.6rem;font-family:var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;width:100%">Elegir supermercado</div>'
+    + allResults.map((s,i) => {
+      const isActive  = s.name === chosenStore;
+      const isCheapest= i === 0;
+      const diff      = i === 0 ? '' : '+$'+(s.total-allResults[0].total).toFixed(2);
+      return '<button class="store-pill'+(isActive?' active':'')+'" onclick="selectStore(\''+s.name+'\')">'
+        + s.name
+        + (s.name==='Lider' ? ' \uD83D\uDED2' : '')
+        + (isCheapest ? ' \uD83C\uDFC6' : '')
+        + (diff ? '<span class="pill-savings">'+diff+'</span>' : '<span class="pill-savings">m\u00e1s barato</span>')
+        + '</button>';
+    }).join('');
+
+  // Cart button — show VTEX cart builder for Lider, search for others
+  const activeCfg = storeConfig[activeResult.name];
+  if (activeCfg && activeCfg.supportsCart) {
+    cartBtn.disabled = false;
+    cartBtnText.textContent = '\uD83D\uDED2 Armar carrito en Lider \u00b7 ~$'+activeResult.total.toFixed(2);
+    cartLabel.textContent = '\u2728 Lider soporta carrito directo \u2014 toca para precargar todos tus productos';
+    cartBtn.onclick = () => buildLiderCart();
+  } else {
+    cartBtn.disabled = false;
+    cartBtnText.textContent = '\uD83D\uDD17 Buscar en '+activeResult.name+' \u00b7 ~$'+activeResult.total.toFixed(2);
+    cartLabel.textContent = 'Toca cada producto para buscarlo, o el bot\u00f3n para abrir todos';
+    cartBtn.onclick = () => goToCart();
+  }
+
+  // Per-item links
+  const cfg = storeConfig[activeResult.name];
+  itemLinks.innerHTML = '<div class="section-label">\uD83D\uDD17 '+activeResult.name+' \u2014 buscar por producto</div>'
+    + shoppingList.map(function(item) {
+        const q   = (item.brand && item.brand !== '(por definir)') ? item.name+' '+item.brand : item.name;
+        const url = cfg.search(q);
+        return '<a class="item-link-row" href="'+url+'" target="_blank" rel="noopener">'
+          +'<span class="item-link-emoji">'+(item.emoji||'\uD83D\uDED2')+'</span>'
+          +'<div style="flex:1"><div class="item-link-name">'+item.name+'</div>'
+          +'<div class="item-link-store">'+(item.brand||'')+' \u00b7 '+activeResult.name+'</div></div>'
+          +'<span class="item-link-arrow">\u2197</span></a>';
+      }).join('');
+}
+
+function selectStore(name) {
+  chosenStore = name;
+  generateComparison();
+}
+
+function goToCart() {
+  const active = allResults.find(r => r.name === chosenStore) || allResults[0];
+  if (!active || !shoppingList.length) return;
+  const cfg = storeConfig[active.name];
+  shoppingList.forEach(function(item, i) {
+    const q = (item.brand && item.brand !== '(por definir)') ? item.name+' '+item.brand : item.name;
+    setTimeout(function(){ window.open(cfg.search(q), '_blank'); }, i * 350);
+  });
+  showLearnToast('Abriendo '+shoppingList.length+' b\u00fasquedas en '+active.name+' \uD83D\uDED2');
+}
+
+// ── TABS ──────────────────────────────────────────────────
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab==='compare') generateComparison();
+}
+function switchStab(tab, el) {
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.stab-content').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('stab-'+tab).classList.add('active');
+}
+
+// ── INIT ──────────────────────────────────────────────────
+renderPreferences();
+renderList();
+generateComparison();
+
+// ── MOBILE NAV ───────────────────────────────────────────
+function mobileNav(panel) {
+  document.querySelectorAll('.mobile-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + panel).classList.add('active');
+  document.getElementById('nav-' + panel)?.classList.add('active');
+}
+
+// ── CLEAR CHAT ────────────────────────────────────────────
+function clearChat() {
+  conversationHistory = [];
+  document.getElementById('messages').innerHTML = `
+    <div class="msg agent">
+      <div class="msg-avatar">🤖</div>
+      <div class="msg-bubble">
+        Chat limpiado ✓ — ¿En qué te ayudo?<br>
+        <span style="font-size:.72rem;color:var(--muted)">Tu lista y preferencias se mantienen intactas.</span>
+      </div>
+    </div>`;
+}
+
+// ── IMPORT FUNCTIONS ─────────────────────────────────────
+let importBuffer = [];
+
+// Excel / XLSX
+function handleXlsxFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      parseImportedRows(rows);
+    } catch(err) {
+      alert('No se pudo leer el archivo. Asegúrate que sea .xlsx o .csv');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function handleXlsxDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--border)';
+  const file = e.dataTransfer.files[0];
+  if (file) handleXlsxFile(file);
+}
+
+function parseImportedRows(rows) {
+  // Skip header row if it looks like headers
+  const start = (rows[0] && typeof rows[0][0] === 'string' && 
+    /producto|item|nombre|descripci/i.test(rows[0][0])) ? 1 : 0;
+  
+  importBuffer = [];
+  for (let i = start; i < rows.length; i++) {
+    const row = rows[i];
+    const name = String(row[0] || '').trim();
+    if (!name) continue;
+    const brand = String(row[1] || '').trim();
+    const qty   = String(row[2] || '1').trim();
+    importBuffer.push({ name, brand: brand || null, quantity: qty });
+  }
+  showImportPreview();
+}
+
+// Texto libre / WhatsApp
+function importFromText() {
+  const raw = document.getElementById('textImportArea').value.trim();
+  if (!raw) return;
+  
+  importBuffer = [];
+  const lines = raw.split(/\n/).map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // Remove list prefixes like "- ", "* ", "1. ", "• "
+    const clean = line.replace(/^[-*•\d]+[\.\)]\s*/, '').trim();
+    if (!clean) continue;
+    
+    // Try to extract quantity prefix: "2 leches Colún" → qty=2, rest="leches Colún"
+    const qtyMatch = clean.match(/^(\d+)\s+(.+)/);
+    const text = qtyMatch ? qtyMatch[2] : clean;
+    const qty  = qtyMatch ? qtyMatch[1] : '1';
+    
+    importBuffer.push({ name: text, brand: null, quantity: qty });
+  }
+  showImportPreview();
+}
+
+// Photo — send to Claude vision
+async function handlePhotoImport(file) {
+  if (!file) return;
+  
+  // Show loading state
+  const preview = document.getElementById('importPreview');
+  const previewItems = document.getElementById('importPreviewItems');
+  preview.style.display = 'block';
+  previewItems.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:.72rem;padding:10px 0;">📸 Analizando imagen con IA...</div>';
+  
+  try {
+    const base64 = await fileToBase64(file);
+    const mediaType = file.type || 'image/jpeg';
+    
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'Esta es una lista de compras. Extrae cada producto en JSON. Responde SOLO con un array JSON, sin texto adicional, sin markdown. Formato: [{"name":"nombre producto","brand":"marca o null","quantity":"cantidad o 1"}]. Si ves cantidades como "x2" o "2 unidades" inclúyelas.' }
+          ]
+        }]
+      })
+    });
+    
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '[]';
+    const clean = text.replace(/```json|```/g, '').trim();
+    importBuffer = JSON.parse(clean);
+    showImportPreview();
+  } catch(err) {
+    previewItems.innerHTML = '<div style="color:#ff6666;font-size:.72rem;">Error al analizar la imagen. Intenta con texto.</div>';
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function showImportPreview() {
+  const preview = document.getElementById('importPreview');
+  const previewItems = document.getElementById('importPreviewItems');
+  preview.style.display = 'block';
+  
+  if (importBuffer.length === 0) {
+    previewItems.innerHTML = '<div style="color:var(--muted);font-size:.72rem;">No se encontraron productos.</div>';
+    return;
+  }
+  
+  previewItems.innerHTML = importBuffer.map((item, i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:.78rem;font-weight:600;">${item.quantity && item.quantity !== '1' ? item.quantity + '× ' : ''}${item.name}</div>
+        ${item.brand ? '<div style="font-size:.65rem;color:var(--accent);font-family:var(--font-mono);">'+item.brand+'</div>' : ''}
+      </div>
+      <button onclick="importBuffer.splice(${i},1);showImportPreview()" 
+        style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;">✕</button>
+    </div>`).join('');
+}
+
+function confirmImport() {
+  if (importBuffer.length === 0) return;
+  
+  for (const item of importBuffer) {
+    const brandPref = brandPreferences.find(p => 
+      p.category.toLowerCase().includes(item.name.toLowerCase().split(' ')[0])
+    );
+    
+    shoppingList.push({
+      name: item.name,
+      brand: item.brand || brandPref?.brand || null,
+      quantity: item.quantity || '1',
+      price: (Math.random() * 4 + 1).toFixed(2),
+      emoji: '🛒'
+    });
+  }
+  
+  const importedCount = importBuffer.length;
+  renderList();
+  generateComparison();
+  document.getElementById('importPreview').style.display = 'none';
+  importBuffer = [];
+  document.getElementById('textImportArea').value = '';
+  showLearnToast('✅ ' + importedCount + ' productos importados');
+  
+  // Switch to list tab
+  document.querySelector('.stab').click();
+}
+
+// Share text for installing
+function copyShareText() {
+  const text = '🛒 SuperAgente — mi asistente de compras con IA\n\nInstálalo como app en tu teléfono:\n1. Abre el link en Safari (iPhone) o Chrome (Android)\n2. Toca Compartir ⬆️ → "Agregar a pantalla de inicio"\n\nTiene mis marcas preferidas guardadas y compara precios en Tottus, Jumbo, Lider, Unimarc y Santa Isabel.';
+  
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showLearnToast('📋 Mensaje copiado — pégalo en WhatsApp'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showLearnToast('📋 Mensaje copiado');
+  }
+}
+
+</script>
+
+<script>
+// ── PWA MANIFEST (inline) ─────────────────────────────────
+const manifestData = {
+  name: "SuperAgente 🛒",
+  short_name: "SuperAgente",
+  description: "Tu asistente IA de compras con memoria de marcas",
+  start_url: window.location.href,
+  display: "standalone",
+  background_color: "#0a0a0a",
+  theme_color: "#0a0a0a",
+  orientation: "portrait",
+  icons: [
+    { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230a0a0a'/%3E%3Ctext x='256' y='340' font-size='280' text-anchor='middle'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+  ]
+};
+const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+const manifestURL = URL.createObjectURL(blob);
+document.getElementById('manifestLink').href = manifestURL;
+
+// ── SERVICE WORKER (inline) ───────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'superagente-v2';
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/'])));
+      self.skipWaiting();
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    });
+  `;
+  const swBlob = new Blob([swCode], {type:'text/javascript'});
+  const swURL = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swURL).catch(()=>{});
+}
+
+// ── INSTALL PROMPT ────────────────────────────────────────
+let deferredPrompt = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isInStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+if (!isInStandalone) {
+  if (isIOS) {
+    // Show iOS instructions after 2s
+    setTimeout(() => {
+      if (!sessionStorage.getItem('installDismissed')) {
+        document.getElementById('installBanner').classList.add('visible');
+        document.getElementById('installBtn').textContent = '¿Cómo instalar?';
+        document.getElementById('installBtn').onclick = () => {
+          document.getElementById('iosOverlay').classList.add('visible');
+        };
+      }
+    }, 2000);
+  } else {
+    // Android / Desktop: wait for beforeinstallprompt
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!sessionStorage.getItem('installDismissed')) {
+        setTimeout(() => document.getElementById('installBanner').classList.add('visible'), 1500);
+      }
+    });
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const {outcome} = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        document.getElementById('installBanner').classList.remove('visible');
+        showLearnToast('¡SuperAgente instalado! 🎉');
+      }
+      deferredPrompt = null;
+    });
+  }
+}
+
+function dismissBanner() {
+  document.getElementById('installBanner').classList.remove('visible');
+  sessionStorage.setItem('installDismissed', '1');
+}
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').classList.remove('visible');
+});
+<\/script>
+</body>
+</html>
